@@ -719,6 +719,7 @@ public class ResponseObject {
         switch (eventName) {
         case MessageConstants.MSG_OP_EVT_RESOURCE_COPY:
         case MessageConstants.MSG_OP_EVT_QUESTION_COPY:
+        case MessageConstants.MSG_OP_EVT_RESOURCE_DELETE:
         case MessageConstants.MSG_OP_EVT_COLLECTION_CONTENT_ADD:
         case MessageConstants.MSG_OP_EVT_ASSESSMENT_QUESTION_ADD:
             originalContentGooruId = content.getString(AJEntityContent.ORIGINAL_CONTENT_ID);

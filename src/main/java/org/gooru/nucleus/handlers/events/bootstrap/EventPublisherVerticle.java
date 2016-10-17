@@ -60,7 +60,13 @@ public class EventPublisherVerticle extends AbstractVerticle {
                                 LOGGER.debug("***********************************************");
 
                                 String eventName = result.getString(EventResponseConstants.EVENT_NAME);
-                                MessageDispatcher.getInstance().sendMessage2Kafka(eventName, result);
+                                //Generate Watson API handler message as well as existing message                       
+                                if(MessageDispatcher.getInstance().isWatsonTaggable(result)){
+                                  MessageDispatcher.getInstance().sendMessage2KafkaWatson(eventName, result);
+                                  MessageDispatcher.getInstance().sendMessage2Kafka(eventName, result);
+                                }else{
+                                  MessageDispatcher.getInstance().sendMessage2Kafka(eventName, result);
+                                }
                                 LOGGER.debug("Dispatched Event ID: {}",
                                     result.getString(EventResponseConstants.EVENT_ID));
                                 LOGGER.info("Message dispatched successfully for event: {}", eventName);

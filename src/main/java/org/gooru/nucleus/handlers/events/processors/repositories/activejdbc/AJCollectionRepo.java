@@ -1,128 +1,258 @@
 package org.gooru.nucleus.handlers.events.processors.repositories.activejdbc;
 
-import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import org.gooru.nucleus.handlers.events.app.components.DataSourceRegistry;
+import org.gooru.nucleus.handlers.events.constants.EventRequestConstants;
+import org.gooru.nucleus.handlers.events.constants.EventResponseConstants;
+import org.gooru.nucleus.handlers.events.processors.ProcessorContext;
 import org.gooru.nucleus.handlers.events.processors.repositories.CollectionRepo;
-import org.gooru.nucleus.handlers.events.processors.repositories.activejdbc.entities.Collection;
+import org.gooru.nucleus.handlers.events.processors.repositories.RepoBuilder;
+import org.gooru.nucleus.handlers.events.processors.repositories.activejdbc.entities.AJEntityCollection;
+import org.gooru.nucleus.handlers.events.processors.repositories.activejdbc.formatter.JsonFormatterBuilder;
 import org.javalite.activejdbc.Base;
-import org.postgresql.util.PGobject;
+import org.javalite.activejdbc.LazyList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-
 
 /**
  * Created by Subbu on 12-Jan-2016.
  */
 public class AJCollectionRepo implements CollectionRepo {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(AJCollectionRepo.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(AJCollectionRepo.class);
+    private final ProcessorContext context;
 
-  /**
-  * @see org.gooru.nucleus.handlers.events.processors.repositories.CollectionRepo#getCollection(java.lang.String)
-  * getCollection: generates event with the following data items:
-  *            id, title, created_at, updated_at, creator_id, original_creator_id, original_collection_id,
-  *            publish_date, format, learning_objective, collaborator, orientation, grading, setting,
-  *            metadata, taxonomy, thumbnail, visible_on_profile, course_id, unit_id, lesson_id
-  *
-  *            course_id, unit_id, lesson_id   ------ will come from the association table
-  */
-  @Override
-  public JsonObject getCollection(String contentID) {
-    Base.open(DataSourceRegistry.getInstance().getDefaultDataSource());
-    LOGGER.debug("AJCollectionRepo : getCollection : " + contentID);
-
-    Collection result = Collection.findById(getPGObject("id", UUID_TYPE, contentID));
-    LOGGER.debug("AJCollectionRepo : getCollection : " + result);
-
-    JsonObject returnValue = null;
-    String[] attributes =  {"id", "title", "created_at", "updated_at", "creator_id", "original_creator_id", "original_collection_id",
-                            "publish_date", "format", "learning_objective", "collaborator", "orientation", "grading", "setting",
-                            "metadata", "taxonomy", "thumbnail", "visible_on_profile", "course_id", "unit_id", "lesson_id" };
-    LOGGER.debug("AJCollectionRepo : getCollection : findById attributes: " + String.join(", ", attributes) );
-
-    if (result != null) {
-      returnValue =  new JsonObject(result.toJson(false,  attributes ));
+    public AJCollectionRepo(ProcessorContext context) {
+        this.context = context;
     }
-    LOGGER.debug("AJCollectionRepo : getCollection : findById returned: " + returnValue);
 
-    Base.close();
-    return returnValue;
-  }
-
-  /* (non-Javadoc)
-   * @see org.gooru.nucleus.handlers.events.processors.repositories.CollectionRepo#getDeletedCollection(java.lang.String)
-   */
-  @Override
-  public JsonObject getDeletedCollection(String contentID) {
-    Base.open(DataSourceRegistry.getInstance().getDefaultDataSource());
-    LOGGER.debug("AJCollectionRepo : getDeletedCollection : " + contentID);
-    // TODO: ...
-    Base.close();
-    return null;
-  }
-
-  /**
-  * @see org.gooru.nucleus.handlers.events.processors.repositories.CollectionRepo#getCollection(java.lang.String)
-  * getAssessment: generates event with the following data items:
-  *            id, title, created_at, updated_at, creator_id, original_creator_id, original_collection_id,
-  *            publish_date, format, learning_objective, collaborator, orientation, grading, setting,
-  *            metadata, taxonomy, thumbnail, visible_on_profile, course_id, unit_id, lesson_id
-  *
-  *            course_id, unit_id, lesson_id   ------ will come from the association table
-  */
-  @Override
-  public JsonObject getAssessment(String contentID) {
-    Base.open(DataSourceRegistry.getInstance().getDefaultDataSource());
-    LOGGER.debug("AJCollectionRepo : getAssessment : " + contentID);
-
-    Collection result = Collection.findById(getPGObject("id", UUID_TYPE, contentID));
-    LOGGER.debug("AJCollectionRepo : getAssessment : " + result);
-
-    JsonObject returnValue = null;
-    String[] attributes =  {"id", "title", "created_at", "updated_at", "creator_id", "original_creator_id", "original_collection_id",
-                            "publish_date", "format", "learning_objective", "collaborator", "orientation", "grading", "setting",
-                            "metadata", "taxonomy", "thumbnail", "visible_on_profile", "course_id", "unit_id", "lesson_id" };
-    LOGGER.debug("AJCollectionRepo : getAssessment : findById attributes: " + String.join(", ", attributes) );
-
-    if (result != null) {
-      returnValue =  new JsonObject(result.toJson(false,  attributes ));
-      LOGGER.debug("AJCollectionRepo : getAssessment : findById returned: " + returnValue);
+    @Override
+    public JsonObject createUpdateCollectionEvent() {
+        String contentId = context.eventBody().getString(EventRequestConstants.ID);
+        return getCollection(contentId);
     }
-    LOGGER.debug("AJCollectionRepo : getAssessment : afterAddingContainmentInfo : " + returnValue);
 
-    Base.close();
-    return returnValue;
-  }
+    @Override
+    public JsonObject copyCollectionEvent() {
+        JsonObject response = new JsonObject();
+        String targetContentId = context.eventBody().getString(EventRequestConstants.ID);
+        JsonObject targetContent = getCollection(targetContentId);
+        response.put(EventResponseConstants.TARGET, targetContent);
 
-  /* (non-Javadoc)
-   * @see org.gooru.nucleus.handlers.events.processors.repositories.CollectionRepo#getDeletedAssessment(java.lang.String)
-   */
-  @Override
-  public JsonObject getDeletedAssessment(String contentID) {
-    Base.open(DataSourceRegistry.getInstance().getDefaultDataSource());
-    LOGGER.debug("AJCollectionRepo : getDeletedAssessment : " + contentID);
-    // TODO: ...
-    Base.close();
-    return null;
-  }
-
-
-  private static final String UUID_TYPE = "uuid";
-
-  private PGobject getPGObject(String field, String type, String value) {
-    PGobject pgObject = new PGobject();
-    pgObject.setType(type);
-    try {
-      pgObject.setValue(value);
-      return pgObject;
-    } catch (SQLException e) {
-      LOGGER.error("Not able to set value for field: {}, type: {}, value: {}", field, type, value);
-      return null;
+        String sourceContentId = targetContent.getString(AJEntityCollection.ORIGINAL_COLLECTION_ID);
+        if (sourceContentId != null && !sourceContentId.isEmpty()) {
+            JsonObject sourceContent = getCollection(sourceContentId);
+            response.put(EventResponseConstants.SOURCE, sourceContent);
+        }
+        return response;
     }
-  }
 
+    @Override
+    public JsonObject deleteCollectionEvent() {
+        String contentId = context.eventBody().getString(EventRequestConstants.ID);
+        return getCollection(contentId);
+    }
 
+    @Override
+    public JsonObject reorderCollectionContentEvent() {
+        return new JsonObject();
+    }
+
+    @Override
+    public JsonObject addContentToCollectionEvent() {
+        String contentId = context.eventBody().getString(EventRequestConstants.ID);
+        return getCollection(contentId);
+    }
+
+    @Override
+    public JsonObject updateCollectionCollaboratorEvent() {
+        Base.open(DataSourceRegistry.getInstance().getDefaultDataSource());
+        String contentId = context.eventBody().getString(EventRequestConstants.ID);
+        JsonObject result = context.eventBody();
+        LazyList<AJEntityCollection> collections =
+            AJEntityCollection.findBySQL(AJEntityCollection.SELECT_COLLABORATOR, contentId);
+        if (!collections.isEmpty()) {
+            String collaborators = collections.get(0).getString(AJEntityCollection.COLLABORATOR);
+            if (collaborators != null && !collaborators.isEmpty()) {
+                result.put(EventRequestConstants.COLLABORATORS, new JsonArray(collaborators));
+            }
+        }
+        Base.close();
+        return result;
+    }
+
+    @Override
+    public JsonObject moveCollectionEvent() {
+        JsonObject response = new JsonObject();
+        JsonObject target = context.eventBody().getJsonObject(EventRequestConstants.TARGET);
+        if (target == null || target.isEmpty()) {
+            LOGGER.error("no target exists in move collection event");
+            return response;
+        }
+
+        String targetLessonId = target.getString(EventRequestConstants.LESSON_ID);
+        JsonObject targetLesson = RepoBuilder.buildLessonRepo(null).getLesson(targetLessonId);
+        response.put(EventResponseConstants.TARGET, targetLesson);
+
+        JsonObject source = context.eventBody().getJsonObject(EventRequestConstants.SOURCE);
+        if (source == null || source.isEmpty()) {
+            LOGGER.error("no source exists in move collection event");
+            return response;
+        }
+
+        String sourceLessonId = source.getString(EventRequestConstants.LESSON_ID);
+        JsonObject sourceLesson = RepoBuilder.buildLessonRepo(null).getLesson(sourceLessonId);
+        response.put(EventResponseConstants.SOURCE, sourceLesson);
+        return response;
+    }
+
+    @Override
+    public JsonObject createUpdateAssessmentEvent() {
+        String contentId = context.eventBody().getString(EventRequestConstants.ID);
+        return getAssessment(contentId);
+    }
+
+    @Override
+    public JsonObject copyAssessmentEvent() {
+        JsonObject response = new JsonObject();
+        String targetContentId = context.eventBody().getString(EventRequestConstants.ID);
+        JsonObject targetContent = getAssessment(targetContentId);
+        response.put(EventResponseConstants.TARGET, targetContent);
+
+        String sourceContentId = targetContent.getString(AJEntityCollection.ORIGINAL_COLLECTION_ID);
+        if (sourceContentId != null && !sourceContentId.isEmpty()) {
+            JsonObject sourceContent = getAssessment(sourceContentId);
+            response.put(EventResponseConstants.SOURCE, sourceContent);
+        }
+        return response;
+    }
+
+    @Override
+    public JsonObject deleteAssessmentEvent() {
+        String contentId = context.eventBody().getString(EventRequestConstants.ID);
+        return getAssessment(contentId);
+    }
+
+    @Override
+    public JsonObject addQuestionToAssessmentEvent() {
+        String contentId = context.eventBody().getString(EventRequestConstants.ID);
+        return getAssessment(contentId);
+    }
+
+    @Override
+    public JsonObject reorderAssessmentContentEvent() {
+        return new JsonObject();
+    }
+
+    @Override
+    public JsonObject updateAssessmentCollaboratorEvent() {
+        Base.open(DataSourceRegistry.getInstance().getDefaultDataSource());
+        String contentId = context.eventBody().getString(EventRequestConstants.ID);
+        JsonObject result = context.eventBody();
+        LazyList<AJEntityCollection> collections =
+            AJEntityCollection.findBySQL(AJEntityCollection.SELECT_COLLABORATOR, contentId);
+        if (!collections.isEmpty()) {
+            result.put(EventRequestConstants.COLLABORATORS,
+                new JsonArray(collections.get(0).getString(AJEntityCollection.COLLABORATOR)));
+        }
+        Base.close();
+        return result;
+    }
+
+    @Override
+    public JsonObject getCollection(String contentId) {
+        Base.open(DataSourceRegistry.getInstance().getDefaultDataSource());
+        LOGGER.debug("getting collection for id {}", contentId);
+
+        JsonObject result = null;
+        LazyList<AJEntityCollection> collections =
+            AJEntityCollection.findBySQL(AJEntityCollection.SELECT_COLLECTION, contentId);
+        LOGGER.debug("number of collections found {}", collections.size());
+        if (!collections.isEmpty()) {
+            result = new JsonObject(new JsonFormatterBuilder()
+                .buildSimpleJsonFormatter(false, AJEntityCollection.COLLECTION_FIELDS).toJson(collections.get(0)));
+        }
+        Base.close();
+        return result;
+    }
+
+    private JsonObject getAssessment(String contentId) {
+        Base.open(DataSourceRegistry.getInstance().getDefaultDataSource());
+        LOGGER.debug("getting assessment for id {}", contentId);
+
+        JsonObject result = null;
+        LazyList<AJEntityCollection> assessments =
+            AJEntityCollection.findBySQL(AJEntityCollection.SELECT_ASSESSMENT, contentId);
+        if (!assessments.isEmpty()) {
+            result = new JsonObject(new JsonFormatterBuilder()
+                .buildSimpleJsonFormatter(false, AJEntityCollection.ASSESSMENT_FIELDS).toJson(assessments.get(0)));
+        }
+
+        Base.close();
+        return result;
+    }
+
+    @Override
+    public List<String> getOwnerAndCreatorIds(JsonArray refCollectionIds) {
+        Base.open(DataSourceRegistry.getInstance().getDefaultDataSource());
+        Set<String> uniqueOwnerCreatorIds = new HashSet<>();
+
+        LazyList<AJEntityCollection> ownerCreatorIdsFromDB = AJEntityCollection
+            .findBySQL(AJEntityCollection.SELECT_OWNER_CREATOR, toPostgresArrayString(refCollectionIds));
+        ownerCreatorIdsFromDB.stream().forEach(collection -> {
+            uniqueOwnerCreatorIds.add(collection.getString(AJEntityCollection.OWNER_ID));
+        });
+
+        List<String> ownerCreatorIds = new ArrayList<>();
+        ownerCreatorIds.addAll(uniqueOwnerCreatorIds);
+        Base.close();
+        return ownerCreatorIds;
+    }
+
+    private String toPostgresArrayString(JsonArray input) {
+        int approxSize = ((input.size() + 1) * 36); // Length of UUID is around
+ // 36
+        // chars
+        if (input.isEmpty()) {
+            return "{}";
+        }
+
+        StringBuilder sb = new StringBuilder(approxSize);
+        sb.append('{');
+        int cnt = 0;
+        for (;;) {
+            String s = input.getString(cnt);
+            sb.append('"').append(s).append('"');
+            if (cnt == input.size() - 1) {
+                return sb.append('}').toString();
+            }
+            sb.append(',');
+            cnt = cnt + 1;
+        }
+    }
+
+    @Override
+    public JsonObject removeCollection() {
+        Base.open(DataSourceRegistry.getInstance().getDefaultDataSource());
+        String contentId = context.eventBody().getString(EventRequestConstants.ID);
+        LOGGER.debug("getting collection/assessment for id {}", contentId);
+
+        JsonObject result = null;
+        LazyList<AJEntityCollection> assessments =
+            AJEntityCollection.findBySQL(AJEntityCollection.SELECT_QUERY, contentId);
+        if (!assessments.isEmpty()) {
+            result = new JsonObject(new JsonFormatterBuilder()
+                .buildSimpleJsonFormatter(false, AJEntityCollection.ASSESSMENT_FIELDS).toJson(assessments.get(0)));
+        }
+
+        Base.close();
+        return result;
+    }
 }

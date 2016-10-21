@@ -1,161 +1,128 @@
 package org.gooru.nucleus.handlers.events.processors.repositories.activejdbc;
 
-
 import org.gooru.nucleus.handlers.events.app.components.DataSourceRegistry;
+import org.gooru.nucleus.handlers.events.constants.EventRequestConstants;
+import org.gooru.nucleus.handlers.events.constants.EventResponseConstants;
+import org.gooru.nucleus.handlers.events.processors.ProcessorContext;
 import org.gooru.nucleus.handlers.events.processors.repositories.ContentRepo;
-import org.gooru.nucleus.handlers.events.processors.repositories.activejdbc.entities.Content;
+import org.gooru.nucleus.handlers.events.processors.repositories.activejdbc.entities.AJEntityContent;
+import org.gooru.nucleus.handlers.events.processors.repositories.activejdbc.formatter.JsonFormatterBuilder;
 import org.javalite.activejdbc.Base;
-import org.postgresql.util.PGobject;
+import org.javalite.activejdbc.LazyList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.vertx.core.json.JsonObject;
-
-import java.sql.SQLException;
-import java.util.Set;
-
 
 /**
  * Created by subbu on 06-Jan-2016.
  */
 public class AJContentRepo implements ContentRepo {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(AJContentRepo.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(AJContentRepo.class);
+    private final ProcessorContext context;
 
-  /**
-  * getResource: generates event with the following data items:
-  *            id, title, description, url, created_at, updated_at, creator_id, original_creator_id, original_content_id, narration,
-  *            content_format, content_subformat, metadata, taxonomy, depth_of_knowledge, thumbnail,
-  *            course_id, unit_id, lesson_id, collection_id, sequence_id,
-  *            is_copyright_owner, copyright_owner, visible_on_profile, info, display_guide, accessibility
-  */
-  @Override
-  public JsonObject getResource(String contentID) {
-    Base.open(DataSourceRegistry.getInstance().getDefaultDataSource());
-    LOGGER.debug("AJContentRepo:getResource: " + contentID);
-
-    Content result = Content.findById(getPGObject("id", UUID_TYPE, contentID));
-    LOGGER.debug("AJContentRepo:getResource:findById: " + result);
-
-    JsonObject returnValue = null;
-    //List<String> attributes = Content.attributes();
-    String[] attributes =  {"id", "title", "description", "url",
-                            "created_at", "updated_at", "creator_id", "original_creator_id", "original_content_id",
-                            "narration", "content_format", "content_subformat",
-                            "metadata", "taxonomy", "depth_of_knowledge", "thumbnail",
-                            "course_id", "unit_id", "lesson_id", "collection_id", "sequence_id",
-                            "is_copyright_owner", "copyright_owner", "visible_on_profile",
-                            "info", "display_guide", "accessibility" };
-    LOGGER.debug("AJContentRepo:getResource:findById attributes: " + String.join(", ", attributes) );
-
-    if (result != null) {
-      //returnValue =  new JsonObject(result.toJson(false,  attributes.toArray(new String[0]) ));
-      returnValue =  new JsonObject(result.toJson(false,  attributes ));
+    public AJContentRepo(ProcessorContext context) {
+        this.context = context;
     }
-    LOGGER.debug("AJContentRepo:getResource:findById returned: " + returnValue);
 
-    Base.close();
-    return returnValue;
-  }
-
-  /**
-  * getDeletedResource: generates event with the following data items:
-  *            id, title, description, url, created_at, updated_at, creator_id, original_creator_id, original_content_id,
-  *            content_format, content_subformat,
-  *            course_id, unit_id, lesson_id, collection_id, sequence_id,
-  *            is_copyright_owner, copyright_owner
-  */
-  @Override
-  public JsonObject getDeletedResource(String contentID) {
-    Base.open(DataSourceRegistry.getInstance().getDefaultDataSource());
-    LOGGER.debug("AJContentRepo:getDeletedResource: " + contentID);
-
-    Content result = Content.findById(getPGObject("id", UUID_TYPE, contentID));
-    LOGGER.debug("AJContentRepo:getDeletedResource:findById: " + result);
-
-    JsonObject returnValue = null;
-    String[] attributes =  {"id", "title", "description", "url",
-                            "created_at", "updated_at", "creator_id", "original_creator_id", "original_content_id",
-                            "content_format", "content_subformat",
-                            "course_id", "unit_id", "lesson_id", "collection_id", "sequence_id",
-                            "is_copyright_owner", "copyright_owner" };
-    LOGGER.debug("AJContentRepo:getDeletedResource:findById attributes: " + String.join(", ", attributes)  );
-
-    if (result != null) {
-      returnValue =  new JsonObject(result.toJson(false,  attributes ));
+    @Override
+    public JsonObject createUpdateResourceEvent() {
+        String contentId = context.eventBody().getString(EventRequestConstants.ID);
+        return getResource(contentId);
     }
-    LOGGER.debug("AJContentRepo:getDeletedResource:findById returned: " + returnValue);
 
-    Base.close();
-    return returnValue;
-  }
+    @Override
+    public JsonObject copyResourceEvent() {
+        JsonObject response = new JsonObject();
+        String targetContentId = context.eventBody().getString(EventRequestConstants.ID);
+        JsonObject targetContent = getResource(targetContentId);
+        response.put(EventResponseConstants.TARGET, targetContent);
 
-  /**
-  * getQuestion: generates event with ALL data from DB table
-  */
-  @Override
-  public JsonObject getQuestion(String contentID) {
-    Base.open(DataSourceRegistry.getInstance().getDefaultDataSource());
-    LOGGER.debug("AJContentRepo:getQuestion: " + contentID);
-
-    Content result = Content.findById(getPGObject("id", UUID_TYPE, contentID));
-    LOGGER.debug("AJContentRepo:getResource:findById: " + result);
-
-    JsonObject returnValue = null;
-    Set<String> attributes = Content.attributeNames();
-    LOGGER.debug("AJContentRepo:getQuestion:findById attributes: " + String.join(", ", attributes.toArray(new String[0])) );
-
-    if (result != null) {
-      returnValue =  new JsonObject(result.toJson(false,  attributes.toArray(new String[0]) ));
+        String sourceContentId = targetContent.getString(AJEntityContent.ORIGINAL_CONTENT_ID);
+        if (sourceContentId != null && !sourceContentId.isEmpty()) {
+            JsonObject sourceContent = getResource(sourceContentId);
+            response.put(EventResponseConstants.SOURCE, sourceContent);
+        }
+        return response;
     }
-    LOGGER.debug("AJContentRepo:getQuestion:findById returned: " + returnValue);
 
-    Base.close();
-    return returnValue;
-  }
-
-  /**
-  * getDeletedQuestion: generates event with the following data items:
-  *            id, title, description, url, created_at, updated_at, creator_id, original_creator_id, original_content_id, short_title,
-  *            content_format, content_subformat,
-  *            course_id, unit_id, lesson_id, collection_id, sequence_id
-  */
-  @Override
-  public JsonObject getDeletedQuestion(String contentID) {
-    Base.open(DataSourceRegistry.getInstance().getDefaultDataSource());
-    LOGGER.debug("AJContentRepo:getDeletedQuestion: " + contentID);
-
-    Content result = Content.findById(getPGObject("id", UUID_TYPE, contentID));
-    LOGGER.debug("AJContentRepo:getDeletedResource:findById: " + result);
-
-    JsonObject returnValue = null;
-    String[] attributes =  {"id", "title", "description", "url", "short_title",
-                            "created_at", "updated_at", "creator_id", "original_creator_id", "original_content_id",
-                            "content_format", "content_subformat",
-                            "course_id", "unit_id", "lesson_id", "collection_id", "sequence_id" };
-    LOGGER.debug("AJContentRepo:getDeletedQuestion:findById attributes: " + String.join(", ", attributes) );
-
-    if (result != null) {
-      returnValue =  new JsonObject(result.toJson(false,  attributes ));
+    @Override
+    public JsonObject deletedResourceEvent() {
+        String contentId = context.eventBody().getString(EventRequestConstants.ID);
+        return getResource(contentId);
     }
-    LOGGER.debug("AJContentRepo:getDeletedQuestion:findById returned: " + returnValue);
 
-    Base.close();
-    return returnValue;
-  }
-
-  private static final String UUID_TYPE = "uuid";
-
-  private PGobject getPGObject(String field, String type, String value) {
-    PGobject pgObject = new PGobject();
-    pgObject.setType(type);
-    try {
-      pgObject.setValue(value);
-      return pgObject;
-    } catch (SQLException e) {
-      LOGGER.error("Not able to set value for field: {}, type: {}, value: {}", field, type, value);
-      return null;
+    @Override
+    public JsonObject createUpdateQuestionEvent() {
+        String contentId = context.eventBody().getString(EventRequestConstants.ID);
+        return getQuestion(contentId);
     }
-  }
+
+    @Override
+    public JsonObject copyQuestionEvent() {
+        JsonObject response = new JsonObject();
+        String targetContentId = context.eventBody().getString(EventRequestConstants.ID);
+        JsonObject targetContent = getQuestion(targetContentId);
+        response.put(EventResponseConstants.TARGET, targetContent);
+
+        String sourceContentId = targetContent.getString(AJEntityContent.ORIGINAL_CONTENT_ID);
+        if (sourceContentId != null && !sourceContentId.isEmpty()) {
+            JsonObject sourceContent = getQuestion(sourceContentId);
+            response.put(EventResponseConstants.SOURCE, sourceContent);
+        }
+        return response;
+    }
+
+    @Override
+    public JsonObject deletedQuestionEvent() {
+        String contentId = context.eventBody().getString(EventRequestConstants.ID);
+        return getQuestion(contentId);
+    }
+
+    @Override
+    public JsonObject getResource(String contentId) {
+        Base.open(DataSourceRegistry.getInstance().getDefaultDataSource());
+        LOGGER.debug("getting resource for id {}", contentId);
+
+        JsonObject result = null;
+        LazyList<AJEntityContent> resources = AJEntityContent.findBySQL(AJEntityContent.SELECT_RESOURCE, contentId);
+        if (!resources.isEmpty()) {
+            result = new JsonObject(new JsonFormatterBuilder()
+                .buildSimpleJsonFormatter(false, AJEntityContent.RESOURCE_FIELDS).toJson(resources.get(0)));
+        }
+
+        Base.close();
+        return result;
+    }
+
+    @Override
+    public JsonObject getQuestion(String contentId) {
+        Base.open(DataSourceRegistry.getInstance().getDefaultDataSource());
+        LOGGER.debug("getting question for id {}", contentId);
+
+        JsonObject result = null;
+        LazyList<AJEntityContent> questions = AJEntityContent.findBySQL(AJEntityContent.SELECT_QUESTION, contentId);
+        if (!questions.isEmpty()) {
+            result = new JsonObject(new JsonFormatterBuilder()
+                .buildSimpleJsonFormatter(false, AJEntityContent.QUESTION_FIELDS).toJson(questions.get(0)));
+        }
+
+        Base.close();
+        return result;
+    }
+
+    @Override
+    public String getContentFormatById(String contentId) {
+        Base.open(DataSourceRegistry.getInstance().getDefaultDataSource());
+        String contentFormat = null;
+        LazyList<AJEntityContent> contents =
+            AJEntityContent.findBySQL(AJEntityContent.SELECT_CONTENT_FORMAT, contentId);
+        if (!contents.isEmpty()) {
+            contentFormat = contents.get(0).getString(AJEntityContent.CONTENT_FORMAT);
+        }
+        Base.close();
+        return contentFormat;
+    }
 
 }

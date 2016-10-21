@@ -1,11 +1,12 @@
 package org.gooru.nucleus.handlers.events.processors.repositories;
 
-import io.vertx.core.json.JsonObject;
+import java.util.List;
 
-/**
- * Created by subbu on 07-Jan-2016.
- */
-public interface UserRepo {  
-  JsonObject getUser(String userID);
-  JsonObject getDeletedUser(String userID);
+public interface UserRepo {
+
+    List<String> getMultipleEmailIds(List<String> userIds);
+    
+    String getUsername(String userId);
+    
+    String[] getFirstAndLastName(String userId);
 }
